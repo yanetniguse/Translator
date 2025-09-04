@@ -3,6 +3,8 @@ import os
 import pdfplumber
 from docx import Document
 import io
+from googletrans import Translator
+
 
 # ✅ Try to import google cloud, fallback to googletrans
 try:
@@ -35,27 +37,9 @@ def extract_text(uploaded_file):
     return text
 
 def translate_text(text, target_lang):
-    if USE_GOOGLE_CLOUD:
-        # 🔹 Production: Google Cloud API
-        project_id = "your-project-id"  # Replace with your actual GCP project ID
-        location = "global"
-        parent = f"projects/{project_id}/locations/{location}"
-
-        response = translate_client.translate_text(
-            request={
-                "parent": parent,
-                "contents": [text],
-                "mime_type": "text/plain",
-                "source_language_code": "en",
-                "target_language_code": target_lang,
-            }
-        )
-        return response.translations[0].translated_text
-    else:
-        # 🔹 Testing: Free googletrans library
-        translator = Translator()
-        result = translator.translate(text, dest=target_lang)
-        return result.text
+    translator = Translator()
+    result = translator.translate(text, dest=target_lang)
+    return result.text
 
 # ---------------- Streamlit UI ---------------- #
 st.title("🌍 English → African Languages Translator")
@@ -73,3 +57,4 @@ if uploaded_file and target_lang:
                 st.write(translated_text)
             else:
                 st.warning("No text could be extracted from the file.")
+
