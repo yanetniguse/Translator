@@ -3,14 +3,25 @@ from google.cloud import translate
 import os
 import pdfplumber
 from docx import Document
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 import io
+import json
 
-# ⚡ Set Google Credentials (make sure you upload credentials.json to Streamlit secrets instead of hardcoding path)
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
+# ---------------- Authentication ---------------- #
+if "google_cloud" in st.secrets:
+    creds = json.loads(st.secrets["google_cloud"])
+    with open("credentials.json", "w") as f:
+        json.dump(creds, f)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
+else:
+    st.error("❌ Google Cloud credentials not found in secrets!")
+    st.stop()
 
 # Initialize Google Translate client
 translate_client = translate.TranslationServiceClient()
 
+# ---------------- Helper Functions ---------------- #
 def extract_text(uploaded_file):
     ext = uploaded_file.name.split('.')[-1].lower()
     text = ""
@@ -29,7 +40,7 @@ def extract_text(uploaded_file):
     return text
 
 def translate_text(text, target_lang):
-    project_id = "your-project-id"  # Replace with your actual GCP project ID
+    project_id = st.secrets["project_id"]  # from secrets
     location = "global"
 
     parent = f"projects/{project_id}/locations/{location}"
@@ -46,6 +57,30 @@ def translate_text(text, target_lang):
 
     return response.translations[0].translated_text
 
+def create_docx(translated_text):
+    docx_buffer = io.BytesIO()
+    doc = Document()
+    for line in translated_text.split("\n"):
+        doc.add_paragraph(line)
+    doc.save(docx_buffer)
+    docx_buffer.seek(0)
+    return docx_buffer
+
+def create_pdf(translated_text):
+    pdf_buffer = io.BytesIO()
+    c = canvas.Canvas(pdf_buffer, pagesize=letter)
+    width, height = letter
+    y = height - 40
+    for line in translated_text.split("\n"):
+        c.drawString(40, y, line)
+        y -= 15
+        if y < 40:  # start new page if needed
+            c.showPage()
+            y = height - 40
+    c.save()
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
 # ---------------- Streamlit UI ---------------- #
 st.title("🌍 English → African Languages Translator")
 
@@ -60,5 +95,23 @@ if uploaded_file and target_lang:
                 translated_text = translate_text(text, target_lang)
                 st.subheader("✅ Translated Text")
                 st.write(translated_text)
+
+                # Download buttons
+                docx_file = create_docx(translated_text)
+                pdf_file = create_pdf(translated_text)
+
+                st.download_button(
+                    label="⬇ Download as DOCX",
+                    data=docx_file,
+                    file_name="translated_report.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+
+                st.download_button(
+                    label="⬇ Download as PDF",
+                    data=pdf_file,
+                    file_name="translated_report.pdf",
+                    mime="application/pdf"
+                )
             else:
                 st.warning("No text could be extracted from the file.")
