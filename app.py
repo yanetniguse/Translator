@@ -1,15 +1,21 @@
 import streamlit as st
-from google.cloud import translate
 import os
 import pdfplumber
 from docx import Document
 import io
 
-# ⚡ Set Google Credentials (make sure you upload credentials.json to Streamlit secrets instead of hardcoding path)
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
+# ✅ Try to import google cloud, fallback to googletrans
+try:
+    from google.cloud import translate
+    USE_GOOGLE_CLOUD = True
+except ImportError:
+    from googletrans import Translator
+    USE_GOOGLE_CLOUD = False
 
-# Initialize Google Translate client
-translate_client = translate.TranslationServiceClient()
+# ⚡ Set Google Credentials (only if using Google Cloud)
+if USE_GOOGLE_CLOUD:
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
+    translate_client = translate.TranslationServiceClient()
 
 def extract_text(uploaded_file):
     ext = uploaded_file.name.split('.')[-1].lower()
@@ -29,22 +35,27 @@ def extract_text(uploaded_file):
     return text
 
 def translate_text(text, target_lang):
-    project_id = "your-project-id"  # Replace with your actual GCP project ID
-    location = "global"
+    if USE_GOOGLE_CLOUD:
+        # 🔹 Production: Google Cloud API
+        project_id = "your-project-id"  # Replace with your actual GCP project ID
+        location = "global"
+        parent = f"projects/{project_id}/locations/{location}"
 
-    parent = f"projects/{project_id}/locations/{location}"
-
-    response = translate_client.translate_text(
-        request={
-            "parent": parent,
-            "contents": [text],
-            "mime_type": "text/plain",
-            "source_language_code": "en",
-            "target_language_code": target_lang,
-        }
-    )
-
-    return response.translations[0].translated_text
+        response = translate_client.translate_text(
+            request={
+                "parent": parent,
+                "contents": [text],
+                "mime_type": "text/plain",
+                "source_language_code": "en",
+                "target_language_code": target_lang,
+            }
+        )
+        return response.translations[0].translated_text
+    else:
+        # 🔹 Testing: Free googletrans library
+        translator = Translator()
+        result = translator.translate(text, dest=target_lang)
+        return result.text
 
 # ---------------- Streamlit UI ---------------- #
 st.title("🌍 English → African Languages Translator")
