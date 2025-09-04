@@ -1,20 +1,12 @@
 import streamlit as st
 from google.cloud import translate
+import os
 import pdfplumber
 from docx import Document
 import io
-import json
-import os
 
-# ⚡ Load Google Cloud credentials from Streamlit Secrets
-if "google_cloud" in st.secrets:
-    service_account_info = json.loads(st.secrets["google_cloud"])
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
-    with open("credentials.json", "w") as f:
-        json.dump(service_account_info, f)
-else:
-    st.error("❌ Google Cloud credentials not found in secrets!")
-    st.stop()
+# ⚡ Set Google Credentials (make sure you upload credentials.json to Streamlit secrets instead of hardcoding path)
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
 
 # Initialize Google Translate client
 translate_client = translate.TranslationServiceClient()
@@ -37,8 +29,9 @@ def extract_text(uploaded_file):
     return text
 
 def translate_text(text, target_lang):
-    project_id = st.secrets["project_id"]  # ✅ Use project ID from secrets
+    project_id = "your-project-id"  # Replace with your actual GCP project ID
     location = "global"
+
     parent = f"projects/{project_id}/locations/{location}"
 
     response = translate_client.translate_text(
@@ -50,6 +43,7 @@ def translate_text(text, target_lang):
             "target_language_code": target_lang,
         }
     )
+
     return response.translations[0].translated_text
 
 # ---------------- Streamlit UI ---------------- #
