@@ -1,34 +1,35 @@
-from flask import Flask, render_template, request, send_file
+import streamlit as st
 from google.cloud import translate
 import os
 import pdfplumber
 from docx import Document
 import io
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/YanetNiguse/Desktop/En_to_AfricanLan/credentials.json"
-
-app = Flask(__name__)
+# ⚡ Set Google Credentials (make sure you upload credentials.json to Streamlit secrets instead of hardcoding path)
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
 
 # Initialize Google Translate client
 translate_client = translate.TranslationServiceClient()
 
-def extract_text(file):
-    ext = file.filename.split('.')[-1].lower()
+def extract_text(uploaded_file):
+    ext = uploaded_file.name.split('.')[-1].lower()
     text = ""
     if ext == 'txt':
-        text = file.read().decode('utf-8')
+        text = uploaded_file.read().decode('utf-8')
     elif ext == 'pdf':
-        with pdfplumber.open(file) as pdf:
+        with pdfplumber.open(uploaded_file) as pdf:
             for page in pdf.pages:
-                text += page.extract_text() + "\n"
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
     elif ext == 'docx':
-        doc = Document(file)
+        doc = Document(uploaded_file)
         for para in doc.paragraphs:
             text += para.text + "\n"
     return text
 
 def translate_text(text, target_lang):
-    project_id = "your-project-id"  # replace with your GCP project ID
+    project_id = "your-project-id"  # Replace with your actual GCP project ID
     location = "global"
 
     parent = f"projects/{project_id}/locations/{location}"
@@ -45,17 +46,19 @@ def translate_text(text, target_lang):
 
     return response.translations[0].translated_text
 
+# ---------------- Streamlit UI ---------------- #
+st.title("🌍 English → African Languages Translator")
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    translated_text = ""
-    if request.method == 'POST':
-        file = request.files['file']
-        target_lang = request.form['language']
-        text = extract_text(file)
-        translated_text = translate_text(text, target_lang)
-    return render_template('index.html', translated_text=translated_text)
+uploaded_file = st.file_uploader("Upload a file (TXT, PDF, DOCX)", type=["txt", "pdf", "docx"])
+target_lang = st.text_input("Enter target language code (e.g., 'sw' for Swahili, 'am' for Amharic)")
 
-if __name__ == '__main__':
-    # Make sure to set GOOGLE_APPLICATION_CREDENTIALS env variable for API key
-    app.run(debug=True)
+if uploaded_file and target_lang:
+    if st.button("Translate"):
+        with st.spinner("Translating..."):
+            text = extract_text(uploaded_file)
+            if text.strip():
+                translated_text = translate_text(text, target_lang)
+                st.subheader("✅ Translated Text")
+                st.write(translated_text)
+            else:
+                st.warning("No text could be extracted from the file.")
